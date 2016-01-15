@@ -42,7 +42,10 @@ def level_to_subexps(mt_xml):
         level += 1
     return level_subexps
 
-def unify(level_subexps, namespace):
+def unify(mt_xml):
+    level_subexps = level_to_subexps(mt_xml)
+    namespace = mt_xml.nsmap[None]
+
     level_unif = OrderedDict()
     #Descendingly order the level_subexps
     level_subexps = OrderedDict(sorted(level_subexps.iteritems(), key = lambda dt: dt[0], reverse = True))
@@ -59,8 +62,29 @@ def unify(level_subexps, namespace):
         level_unif[level] = deepcopy(subexps[0].getroottree())
     return level_unif
 
+def get_alignment(mt_xml_a, mt_xml_b):
+    return {}
+
+
+def align(mt_xml_a, mt_xml_b):
+    '''
+        Assuming mt_xml_a and mt_xml_b are from the same template
+    '''
+    level_unif_a = unify(mt_xml_a)
+    level_unif_b = unify(mt_xml_b)
+
+    #descendingly order
+    level_unif_a = sorted(level_unif_a.iteritems(), key = lambda dt: dt[0], reverse = True)
+    level_unif_b = sorted(level_unif_b.iteritems(), key = lambda dt: dt[0], reverse = True)
+
+    for level_a, exp_a in level_unif_a.iteirtems():
+        for level_b, exp_b in level_unif_b.iteritems():
+            if etree.tostring(exp_a) == etree.tostring(exp_b):
+                alignment = get_alignment(exp_a, exp_b)
+                #if value of a key is not single, then alignment fails
+
 mtdt = parse(m)
-result = unify(level_to_subexps(mtdt), mtdt.nsmap[None])
+result = unify(mtdt)
 
 for k, v in result.iteritems():
     print k
