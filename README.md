@@ -7,9 +7,8 @@ The procedure is as follows:
 
 ### UNIFICATION Process
 1. Flatten the math expression
-    a. If the direct descendant of a subtree do not contain mo, then convert them into prefix notation (v)
-    b. Otherwise, convert into infix notation (v)
-    c. Naming the mi: Var_k
-    d. (opt) naming the mn
-
+..  a. If the direct descendant of a subtree do not contain mo, then convert them into prefix notation (v)
+..  b. Otherwise, convert into infix notation (v)
+..  c. Naming the mi: Var_k
+..  d. (opt) naming the mn
 2. Use unify.pl to do unification (v)
