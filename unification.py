@@ -1,6 +1,8 @@
 from lxml import etree, objectify
 from collections import OrderedDict
 from copy import deepcopy
+from mathml_to_string import MathML2String
+from unify_prolog import UnifiableProlog
 
 #INPUT:  one math expression
 #OUTPUT: n (depth of the input) unified math expressions
@@ -62,9 +64,9 @@ def unify(mt_xml):
             #1. Remove the children, thus do postorder processing
             remove_children(exp)
             #2. Put placeholder in place of the children
-            exp.text = "PLACE"
             #3. Rename the tag (mo -> mo, otherwise into mi)
             if exp.tag != "{%s}mo" % namespace:
+                exp.text = "PLACE"
                 exp.tag = "mi"
         level_unif[level] = deepcopy(subexps[0].getroottree())
     return level_unif
@@ -86,13 +88,13 @@ def get_alignment(mt_xml_a, mt_xml_b, mt_xml_unify_a, mt_xml_unify_b):
         path = mt_xml_unify_a.getpath(ele)
         general_path = generalize_xpath_tonot_operator(path)
 
-        print path, general_path
+        #print path, general_path
         #Get element in xml_a and xml_b given the xpath
         eles_a = (mt_xml_a.xpath(path) + mt_xml_a.xpath(general_path))
         eles_b = (mt_xml_b.xpath(path) + mt_xml_b.xpath(general_path))
         alignments.setdefault(eles_a[0], []).append(eles_b[0])
 
-        print [etree.tostring(ele_a) for ele_a in eles_a], [etree.tostring(ele_b) for ele_b in eles_b]
+        #print [etree.tostring(ele_a) for ele_a in eles_a], [etree.tostring(ele_b) for ele_b in eles_b]
     return alignments
 
 def align(mt_xml_a, mt_xml_b):
@@ -110,13 +112,25 @@ def align(mt_xml_a, mt_xml_b):
     #descendingly order
     level_unif_a = sorted(level_unif_a.iteritems(), key = lambda dt: dt[0], reverse = True)
     level_unif_b = sorted(level_unif_b.iteritems(), key = lambda dt: dt[0], reverse = True)
+    
+    print "A", mt_xml_a, [(k, etree.tostring(v)) for k, v in level_unif_a]
+
+    print "B", mt_xml_b, [(k, etree.tostring(v)) for k, v in level_unif_b]
+
+    str_flattener = MathML2String()
+    unif = UnifiableProlog("./unify.pl")
 
     for level_a, exp_a in level_unif_a:
         for level_b, exp_b in level_unif_b:
             if etree.tostring(exp_a) == etree.tostring(exp_b):
-                alignment = get_alignment(mt_xml_a, mt_xml_b, exp_a, exp_b)
-                #if value of a key is not single, then alignment fails
-                return alignment
+                mt_str_a = str_flattener.convert(exp_a)
+                mt_str_b = str_flattener.convert(exp_b)
+                is_aligned = unif.is_unified(mt_str_a, mt_str_b)
+                if is_aligned: 
+                    print mt_str_a, etree.tostring(exp_a)
+                    print mt_str_b, etree.tostring(exp_b)
+                    return True
+    return False
 
 #test unification
 mtdt = parse(m)
@@ -126,6 +140,7 @@ result = unify(mtdt)
 mt_xml_a = parse(m)
 mt_xml_b = parse(m2)
 alignments = align(mt_xml_a, mt_xml_b)
+print alignments
 #for k, v in alignments.iteritems():
 #    print etree.tostring(k)
 #    print [etree.tostring(val) for val in v]
