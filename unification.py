@@ -1,7 +1,7 @@
 from lxml import etree, objectify
 from collections import OrderedDict
 from copy import deepcopy
-from mathml_to_string import MathML2String
+from mathmlcontent_to_string import MathML2String
 from unify_prolog import UnifiableProlog
 
 #INPUT:  one math expression
@@ -11,25 +11,43 @@ from unify_prolog import UnifiableProlog
 # 1. Get the mapping between depth and all related elements
 # 2. Unify from the deepest level
 
-m = """<math xmlns='http://www.w3.org/1998/Math/MathML'>
-    <msup>
-        <mi>a</mi>
-        <mn>2</mn>
-    </msup>
-    <mo>+</mo>
-    <mfrac>
-        <msqrt>
-            <mi>b</mi>
-        </msqrt>
-        <mi>c</mi>
-    </mfrac>
-</math>"""
+s1 = """
+    <semantics>
+        <cerror>
+        <qvar name='a'></qvar>
+        <leq/>
+        <qvar name='b'></qvar>
+        </cerror>
+    </semantics>
+"""
 
-m2 = """<math xmlns='http://www.w3.org/1998/Math/MathML'>
-    <mi>a</mi>
-    <mo>+</mo>
-    <mi>b</mi>
-</math>"""
+s2 = """
+          <semantics>
+            <cerror>
+              <csymbol>fragments</csymbol>
+              <csymbol>P</csymbol>
+              <cerror>
+                <csymbol>fragments</csymbol>
+                <ci>normal-[</ci>
+                <csymbol>X</csymbol>
+                <geq/>
+                <csymbol>t</csymbol>
+                <ci>normal-]</ci>
+              </cerror>
+              <leq />
+              <apply>
+                <divide/>
+                <apply >
+                  <times/>
+                  <ci>E</ci>
+                  <qvar name="X"/>
+                </apply>
+                <qvar name="t"/>
+              </apply>
+            </cerror>
+        </semantics>
+"""
+
 
 
 def parse(mt_str):
@@ -51,9 +69,8 @@ def level_to_subexps(mt_xml):
         level += 1
     return level_subexps
 
-def unify(mt_xml):
+def unify(mt_xml, signature):
     level_subexps = level_to_subexps(mt_xml)
-    namespace = mt_xml.nsmap[None]
 
     level_unif = OrderedDict()
     #Descendingly order the level_subexps
@@ -65,37 +82,12 @@ def unify(mt_xml):
             remove_children(exp)
             #2. Put placeholder in place of the children
             #3. Rename the tag (mo -> mo, otherwise into mi)
-            if exp.tag != "{%s}mo" % namespace:
-                exp.text = "PLACE"
-                exp.tag = "mi"
+            if (exp.tag == "csymbol" or exp.tag == "ci") and exp.text.isalnum() and not exp.text.isdigit():
+                exp.text = "%s_%s" % (exp.text, signature)
+                exp.tag = "ci"
         level_unif[level] = deepcopy(subexps[0].getroottree())
+        print etree.tostring(subexps[0].getroottree())
     return level_unif
-
-def generalize_xpath_tonot_operator(path):
-    elements = path.split("/")
-    leaf = elements[-1]
-    if leaf.startswith("mo") or leaf.startswith("*"): return path
-
-    elements[-1] = "*[local-name() != 'mo']%s" % leaf[leaf.index("["):]
-    return "/".join(elements)
-
-def get_alignment(mt_xml_a, mt_xml_b, mt_xml_unify_a, mt_xml_unify_b):
-    place_elements = mt_xml_unify_a.xpath(".//*[text() = 'PLACE']")
-
-    alignments = {}
-
-    for ele in place_elements:
-        path = mt_xml_unify_a.getpath(ele)
-        general_path = generalize_xpath_tonot_operator(path)
-
-        #print path, general_path
-        #Get element in xml_a and xml_b given the xpath
-        eles_a = (mt_xml_a.xpath(path) + mt_xml_a.xpath(general_path))
-        eles_b = (mt_xml_b.xpath(path) + mt_xml_b.xpath(general_path))
-        alignments.setdefault(eles_a[0], []).append(eles_b[0])
-
-        #print [etree.tostring(ele_a) for ele_a in eles_a], [etree.tostring(ele_b) for ele_b in eles_b]
-    return alignments
 
 def align(mt_xml_a, mt_xml_b):
     '''
@@ -106,39 +98,37 @@ def align(mt_xml_a, mt_xml_b):
     mt_xml_tounify_a = deepcopy(mt_xml_a)
     mt_xml_tounify_b = deepcopy(mt_xml_b)
 
-    level_unif_a = unify(mt_xml_tounify_a)
-    level_unif_b = unify(mt_xml_tounify_b)
+    level_unif_a = unify(mt_xml_tounify_a, 1)
+    level_unif_b = unify(mt_xml_tounify_b, 2)
 
     #descendingly order
     level_unif_a = sorted(level_unif_a.iteritems(), key = lambda dt: dt[0], reverse = True)
     level_unif_b = sorted(level_unif_b.iteritems(), key = lambda dt: dt[0], reverse = True)
     
-    print "A", mt_xml_a, [(k, etree.tostring(v)) for k, v in level_unif_a]
-
-    print "B", mt_xml_b, [(k, etree.tostring(v)) for k, v in level_unif_b]
-
+#    print "A", mt_xml_a, [(k, etree.tostring(v)) for k, v in level_unif_a]
+#    print "B", mt_xml_b, [(k, etree.tostring(v)) for k, v in level_unif_b]
+#    print 
     str_flattener = MathML2String()
     unif = UnifiableProlog("./unify.pl")
 
     for level_a, exp_a in level_unif_a:
         for level_b, exp_b in level_unif_b:
-            if etree.tostring(exp_a) == etree.tostring(exp_b):
-                mt_str_a = str_flattener.convert(exp_a)
-                mt_str_b = str_flattener.convert(exp_b)
-                is_aligned = unif.is_unified(mt_str_a, mt_str_b)
-                if is_aligned: 
-                    print mt_str_a, etree.tostring(exp_a)
-                    print mt_str_b, etree.tostring(exp_b)
-                    return True
+            #if etree.tostring(exp_a) == etree.tostring(exp_b):
+            mt_str_a = str_flattener.convert(exp_a)
+            mt_str_b = str_flattener.convert(exp_b)
+            print mt_str_a, mt_str_b
+            is_aligned = unif.is_unified(mt_str_a, mt_str_b)
+            if is_aligned: 
+                return True
     return False
 
 #test unification
-mtdt = parse(m)
-result = unify(mtdt)
+mtdt = parse(s2)
+result = unify(mtdt, 1)
 
 #test alignments
-mt_xml_a = parse(m)
-mt_xml_b = parse(m2)
+mt_xml_a = parse(s1)
+mt_xml_b = parse(s2)
 alignments = align(mt_xml_a, mt_xml_b)
 print alignments
 #for k, v in alignments.iteritems():

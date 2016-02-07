@@ -4,6 +4,9 @@ class MathML2String:
     def __is_leaf(self, mt_ele):
         return len(mt_ele) == 0
 
+    def __prefix(self, mt_eles):
+        
+
     def __join_math_eles(self, mt_eles):
         mt_str = mt_eles[0]["text"]
         for i in range(1, len(mt_eles)):
@@ -19,7 +22,7 @@ class MathML2String:
     def __walk_mathml(self, mt_xml):
         temp_flat = []
         
-        if self.__is_leaf(mt_xml): return mt_xml.xpath("local-name()"), mt_xml.text
+        if self.__is_leaf(mt_xml): return mt_xml.xpath("local-name()"), (mt_xml.text if mt_xml.text != "" else "*") #handle invisible multiplication
         
         contain_operator = False
         for ele in mt_xml:
