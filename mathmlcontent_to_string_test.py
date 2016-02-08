@@ -57,16 +57,18 @@ s3 = """
 """
 
 
-m = MathML2String()
-address = "/Users/giovanni/working/aizawalab/Mathcat/ntcir11/NTCIR11-Math2-queries-participants.xml" 
+address = "/home/narya/Dropbox/NTCIR11-Math2-queries-participants.xml" 
 doc = etree.parse(address)
 formulae = doc.xpath(".//*[local-name() = 'formula']")
 for f in formulae:
-    print f.getparent().getparent()[0].text
+    idx = f.getparent().getparent()[0].text
+    print idx
+    #if "10" not in idx: continue
     for ann in f.xpath(".//*[local-name() = 'annotation']") + f.xpath(".//*[local-name() = 'annotation-xml']"):
         ann_p = ann.getparent()
         ann_p.remove(ann)
     for sem in f.xpath(".//*[local-name() = 'semantics']"):
+        m = MathML2String()
         print m.convert(etree.ElementTree(sem))
     print
 
